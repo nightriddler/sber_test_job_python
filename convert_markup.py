@@ -1,7 +1,6 @@
-import csv
 import os
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import pandas
 import typer
@@ -45,7 +44,7 @@ class SearchFile:
 
         Возвращаемое значение
         ---------------------
-        None
+        str
         """
         curr_dir = os.getcwd()
         if self.catalog:
@@ -112,7 +111,7 @@ class ConvertMarkup:
     extension: Optional[str] = ".ann"
     count: int = 0
 
-    def convert_all(self) -> str:
+    def convert_all(self) -> None:
         """
         Конвертация всех файлов.
 
@@ -122,9 +121,9 @@ class ConvertMarkup:
         """
         list(map(self.convert_markup, self.roots))
 
-    def convert_markup(self, root) -> None:
+    def convert_in_bio(self, file: str) -> Tuple[List[str], List[str], List[str]]:
         """
-        Конвертация файла разметки BRAT в BIO по указанному относительному расположению.
+        Преобразование файла в кортеж списков из сущностей, имен и тэгов разметки BIO.
 
         Например:
         --------
@@ -141,67 +140,99 @@ class ConvertMarkup:
         T26	O	увеличения
         --------
 
-        self.suffix_markup и self.extension - добавляют суффикс и расширение к указанному файлу.
-        Каждый сконвертированный файл - self.count += 1
+        Возвращаемое значение
+        ---------------------
+        Tuple[List[str], List[str], List[str]]
+        """
+        word_list, tag_list, entity_list = [], [], []
+        for line in file.readlines():
+            line = line.split()
+            entity = line[0]
+            tag = line[1]
+            words = line[4:]
+
+            if len(words) == 1:
+                word_list.append(self.replace_comma(words[0]))
+                tag_list.append("O")
+                entity_list.append(entity)
+
+            if len(words) > 1:
+                count_word = 0
+                for word in words:
+                    word_list.append(self.replace_comma(word))
+                    if len(word) <= 2:
+                        tag_list.append("O")
+                    else:
+                        if count_word == 0:
+                            tag_list.append(tag + "-B")
+                        else:
+                            tag_list.append(tag + "-I")
+                        count_word += 1
+                    entity_list.append(entity)
+                count_word = 0
+
+        return word_list, tag_list, entity_list
+
+    def create_dataframe(
+        self, words: List[str], tags: List[str], entities: List[str]
+    ) -> pandas.DataFrame:
+        """
+        Создание датафрейма из списков имен, тэгов разметки BIO и сущностей.
+
+        Возвращаемое значение
+        ---------------------
+        pandas.DaraFrame
+        """
+        df = pandas.DataFrame(list(zip(entities, tags, words)))
+        return df
+
+    def convert_markup(self, root: str) -> None:
+        """
+        Конвертация файла разметки BRAT в BIO по указанному относительному расположению.
 
         Возвращаемое значение
         ---------------------
         None
         """
-        word_list, tag_list, entity_list = [], [], []
-        filename_convert = root[:-5] + self.suffix_markup + self.extension
-        if os.path.exists(filename_convert):
+        file = root[:-5] + self.suffix_markup + self.extension
+
+        if self.check_file(file):
+            typer.echo(f"Файл {root} уже сконвертирован.")
             return
+
         with open(root, encoding="utf-8", newline="") as read_file:
-            file_reader = csv.reader(read_file)
+            word_list, tag_list, entity_list = self.convert_in_bio(read_file)
 
-            for line in file_reader:
-                line = line[0].split()
-                entity = line[0]
-                tag = line[1]
-                words = line[4:]
+            if word_list and tag_list and entity_list:
+                df = self.create_dataframe(word_list, tag_list, entity_list)
+                df.to_csv(file, sep="\t", header=False, index=False)
+                self.count += 1
 
-                if len(words) == 1:
-                    word_list.append(words[0])
-                    tag_list.append("O")
-                    entity_list.append(entity)
-
-                if len(words) > 1:
-                    count_word = 0
-                    for word in words:
-                        word_list.append(word)
-                        if count_word == 0:
-                            tag_list.append(tag + "-B")
-                        else:
-                            tag_list.append(tag + "-I")
-                        entity_list.append(entity)
-                        count_word += 1
-                    count_word = 0
-        if entity_list and tag_list and word_list:
-            dataframe_with_bio = pandas.DataFrame(
-                list(zip(entity_list, tag_list, word_list))
-            )
-            dataframe_with_bio.to_csv(
-                filename_convert, sep="\t", header=False, index=False
-            )
-            self.count += 1
-
-    @property
-    def get_count(self) -> int:
+    def check_file(self, file: str) -> bool:
         """
-        Количество сконвертированных файлов.
+        Проверка файла на повторную конвертацию
 
         Возвращаемое значение
         ---------------------
-        int
+        bool
         """
-        return self.count
+        return True if os.path.exists(file) else False
+
+    def replace_comma(self, word: str) -> str:
+        """
+        Возвращает строку без запятых.
+
+        Возвращаемое значение
+        ---------------------
+        str
+        """
+        return word.replace(",", "")
 
 
 def main(
     catalog: Optional[str] = typer.Argument(
         "",
-        help="Поиск файлов в укзанном каталоге. По-умолчанию, поиск в текущей директории. Возможен относительный путь: folder1/folder2",
+        help="Поиск файлов в указнном каталоге. По-умолчанию, поиск в текущей директории. Возможен относительный путь: folder1/folder2",
     ),
     suff_conv: Optional[str] = typer.Option(
         "_bio", help="Суффикс для добавления к конвертируемым файлам."
@@ -220,13 +251,14 @@ def main(
     Модуль для поиска и конвертации файлов разметки BRAT в разметку BIO.
     """
     search = SearchFile(catalog, recursive, suff_conv, init_extension)
-    conv = ConvertMarkup(
+
+    converter = ConvertMarkup(
         search.get_files_from_current_dir(), suff_conv, final_extension
     )
-    conv.convert_all()
-    print(
-        f"Сконвертированно файлов: {conv.get_count}"
-        if conv.get_count
+    converter.convert_all()
+    typer.echo(
+        f"Сконвертированно файлов: {converter.count}"
+        if converter.count
         else "Файлы для конвертации не найдены."
     )
 
