@@ -31,7 +31,7 @@ class SearchFile:
         Получить файлы из текущего каталога.
     """
 
-    catalog: Optional[str] = None
+    catalog: Optional[str] = ""
     recursive: Optional[bool] = False
     suffix_markup: Optional[str] = "_bio"
     extension: Optional[str] = ".ann"
@@ -104,12 +104,27 @@ class ConvertMarkup:
 
     convert_markup():
         Конвертация файла по указанному пути.
+
+    def convert_in_bio():
+        Преобразование файла в кортеж списков.
+
+    def create_dataframe():
+        Создание датафрейма из списка сущностей, имен и тэгов.
+
+    def check_file():
+        Проверка наличие файла по указанному пути.
+
+    def replace_comma():
+        Убирает запятые из строки и возвращает её.
+
+    def result():
+        Получить количество сконвертированных файлов.
     """
 
     roots: List[str]
     suffix_markup: Optional[str] = "_bio"
     extension: Optional[str] = ".ann"
-    count: int = 0
+    __count: int = 0
 
     def convert_all(self) -> None:
         """
@@ -120,6 +135,28 @@ class ConvertMarkup:
         None
         """
         list(map(self.convert_markup, self.roots))
+
+    def convert_markup(self, root: str) -> None:
+        """
+        Конвертация файла разметки BRAT в BIO по указанному относительному расположению.
+
+        Возвращаемое значение
+        ---------------------
+        None
+        """
+        file = root[:-5] + self.suffix_markup + self.extension
+
+        if self.check_file(file):
+            typer.echo(f"Файл {root} уже сконвертирован.")
+            return
+
+        with open(root, encoding="utf-8", newline="") as read_file:
+            words, tags, entities = self.convert_in_bio(read_file)
+
+            if words and tags and entities:
+                df = self.create_dataframe(words, tags, entities)
+                df.to_csv(file, sep="\t", header=False, index=False)
+                self.__count += 1
 
     def convert_in_bio(self, file: str) -> Tuple[List[str], List[str], List[str]]:
         """
@@ -186,31 +223,9 @@ class ConvertMarkup:
         df = pandas.DataFrame(list(zip(entities, tags, words)))
         return df
 
-    def convert_markup(self, root: str) -> None:
-        """
-        Конвертация файла разметки BRAT в BIO по указанному относительному расположению.
-
-        Возвращаемое значение
-        ---------------------
-        None
-        """
-        file = root[:-5] + self.suffix_markup + self.extension
-
-        if self.check_file(file):
-            typer.echo(f"Файл {root} уже сконвертирован.")
-            return
-
-        with open(root, encoding="utf-8", newline="") as read_file:
-            word_list, tag_list, entity_list = self.convert_in_bio(read_file)
-
-            if word_list and tag_list and entity_list:
-                df = self.create_dataframe(word_list, tag_list, entity_list)
-                df.to_csv(file, sep="\t", header=False, index=False)
-                self.count += 1
-
     def check_file(self, file: str) -> bool:
         """
-        Проверка файла на повторную конвертацию
+        Проверка файла на повторную конвертацию.
 
         Возвращаемое значение
         ---------------------
@@ -227,6 +242,17 @@ class ConvertMarkup:
         str
         """
         return word.replace(",", "")
+
+    @property
+    def result(self) -> int:
+        """
+        Возвращает количество сконвертированных файлов.
+
+        Возвращаемое значение
+        ---------------------
+        int
+        """
+        return self.__count
 
 
 def main(
@@ -251,14 +277,13 @@ def main(
     Модуль для поиска и конвертации файлов разметки BRAT в разметку BIO.
     """
     search = SearchFile(catalog, recursive, suff_conv, init_extension)
-
     converter = ConvertMarkup(
         search.get_files_from_current_dir(), suff_conv, final_extension
     )
     converter.convert_all()
     typer.echo(
-        f"Сконвертированно файлов: {converter.count}"
-        if converter.count
+        f"Сконвертированно файлов: {converter.result}"
+        if converter.result
         else "Файлы для конвертации не найдены."
     )
 
