@@ -1,84 +1,29 @@
+import csv
 import os
+import pathlib
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from io import TextIOWrapper
+from typing import List, Tuple
 
-import pandas
 import typer
 
 
-@dataclass
-class SearchFile:
+def get_files(
+    catalog: str, recursive: bool, suffix_markup: str, extension: str
+) -> List[str]:
     """
-    Класс осуществляет поиск файлов в каталоге.
+    Осуществляет поиск в каталоге.
 
-    Атрибуты
-    --------
-    catalog : str
-        каталог в котором производится поиск, либо относительный путь каталога
-    recursive : bool
-        True поиск в глубину. По-умолчанию - False.
-    suffix_markup : str
-        суффикс который необходимо исключить при поиске файлов. По-умолчанию - "_bio"
-    extension : str
-        расширение искомых файлов. По-умолчанию - ".ann"
-
-    Методы
-    ------
-    get_current_dir():
-        Получить путь текущего каталога.
-
-    get_files_from_current_dir():
-        Получить файлы из текущего каталога.
+    По-умолчанию, recursive = False, ищет файлы только в каталоге.
+    extension и suffix_markup - исключают поиск файлов с указанным расширением и суффиксом
     """
-
-    catalog: Optional[str] = ""
-    recursive: Optional[bool] = False
-    suffix_markup: Optional[str] = "_bio"
-    extension: Optional[str] = ".ann"
-
-    def get_current_dir(self) -> str:
-        """
-        Получить путь текущего каталога.
-
-        Если self.catalog не указан - поиск в директории с запускаемым модулем (допускается относительный путь к каталогу).
-
-        Возвращаемое значение
-        ---------------------
-        str
-        """
-        curr_dir = os.getcwd()
-        if self.catalog:
-            transform_dir = self.catalog.replace("/", "\\")
-            curr_dir = curr_dir + f"\\{transform_dir}"
-        return curr_dir
-
-    def get_files_from_current_dir(self) -> List[str]:
-        """
-        Осуществляет поиск в каталоге.
-
-        По-умолчанию, self.recursive = False, ищет файлы только в каталоге.
-        self.extension и self.suffix_markup - исключают поиск файлов с указанным расширением и суффиксом
-
-        Возвращаемое значение
-        ---------------------
-        List[str]
-        """
-        find_files = []
-        for root, dirs, files in os.walk(self.get_current_dir()):
-            if not self.recursive:
-                return [
-                    os.path.join(root, name)
-                    for name in files
-                    if name.endswith(self.extension)
-                    and not name.endswith(f"{self.suffix_markup+self.extension}")
-                ]
-            find_files += [
-                os.path.join(root, name)
-                for name in files
-                if name.endswith(self.extension)
-                and not name.endswith(f"{self.suffix_markup+self.extension}")
-            ]
-        return find_files
+    if recursive:
+        files = pathlib.Path(catalog).rglob(f"*{extension}")
+    else:
+        files = pathlib.Path(catalog).glob(f"*{extension}")
+    return [
+        str(i) for i in list(files) if not str(i).endswith(f"{suffix_markup+extension}")
+    ]
 
 
 @dataclass
@@ -108,8 +53,8 @@ class ConvertMarkup:
     def convert_in_bio():
         Преобразование файла в кортеж списков.
 
-    def create_dataframe():
-        Создание датафрейма из списка сущностей, имен и тэгов.
+    def write_csv():
+        Сохраняет списки в файл по указанному пути.
 
     def check_file():
         Проверка наличие файла по указанному пути.
@@ -122,8 +67,8 @@ class ConvertMarkup:
     """
 
     roots: List[str]
-    suffix_markup: Optional[str] = "_bio"
-    extension: Optional[str] = ".ann"
+    suffix_markup: str = "_bio"
+    extension: str = ".ann"
     __count: int = 0
 
     def convert_all(self) -> None:
@@ -151,14 +96,14 @@ class ConvertMarkup:
             return
 
         with open(root, encoding="utf-8", newline="") as read_file:
-            words, tags, entities = self.convert_in_bio(read_file)
+            words, tags, entities = self.convert_in_bio(read_file)  # type: ignore
 
             if words and tags and entities:
-                df = self.create_dataframe(words, tags, entities)
-                df.to_csv(file, sep="\t", header=False, index=False)
-                self.__count += 1
+                self.write_csv(file, words, tags, entities)
 
-    def convert_in_bio(self, file: str) -> Tuple[List[str], List[str], List[str]]:
+    def convert_in_bio(
+        self, file: TextIOWrapper
+    ) -> Tuple[List[str], List[str], List[str]]:
         """
         Преобразование файла в кортеж списков из сущностей, имен и тэгов разметки BIO.
 
@@ -169,12 +114,12 @@ class ConvertMarkup:
         --------
         ->
         --------
-        T25	MET-B	обеспеченности
-        T25	MET-I	населения
-        T25	MET-I	качественными
-        T25	MET-I	торговыми
-        T25	MET-I	площадями
-        T26	O	увеличения
+        T25	MET-B обеспеченности
+        T25	MET-I населения
+        T25	MET-I качественными
+        T25	MET-I торговыми
+        T25	MET-I площадями
+        T26	O увеличения
         --------
 
         Возвращаемое значение
@@ -183,10 +128,10 @@ class ConvertMarkup:
         """
         word_list, tag_list, entity_list = [], [], []
         for line in file.readlines():
-            line = line.split()
-            entity = line[0]
-            tag = line[1]
-            words = line[4:]
+            line_proc = line.split()
+            entity = line_proc[0]
+            tag = line_proc[1]
+            words = line_proc[4:]
 
             if len(words) == 1:
                 word_list.append(self.replace_comma(words[0]))
@@ -210,18 +155,21 @@ class ConvertMarkup:
 
         return word_list, tag_list, entity_list
 
-    def create_dataframe(
-        self, words: List[str], tags: List[str], entities: List[str]
-    ) -> pandas.DataFrame:
+    def write_csv(
+        self, file: str, words: List[str], tags: List[str], entities: List[str]
+    ) -> None:
         """
-        Создание датафрейма из списков имен, тэгов разметки BIO и сущностей.
+        Сохраняет списки в файл по указанному пути.
 
         Возвращаемое значение
         ---------------------
-        pandas.DaraFrame
+        none
         """
-        df = pandas.DataFrame(list(zip(entities, tags, words)))
-        return df
+        with open(file, "w", encoding="utf-8", newline="") as csv_write:
+            writer = csv.writer(csv_write, delimiter=" ")
+            for i in range(len(words)):
+                writer.writerow([entities[i], tags[i], words[i]])
+            self.__count += 1
 
     def check_file(self, file: str) -> bool:
         """
@@ -256,30 +204,26 @@ class ConvertMarkup:
 
 
 def main(
-    catalog: Optional[str] = typer.Argument(
+    catalog: str = typer.Argument(
         "",
         help="Поиск файлов в указнном каталоге. По-умолчанию, поиск в текущей директории. Возможен относительный путь: folder1/folder2",
     ),
-    suff_conv: Optional[str] = typer.Option(
+    suff_conv: str = typer.Option(
         "_bio", help="Суффикс для добавления к конвертируемым файлам."
     ),
-    init_extension: Optional[str] = typer.Option(
-        ".ann", help="Расширение искомого файла."
-    ),
-    final_extension: Optional[str] = typer.Option(
+    init_extension: str = typer.Option(".ann", help="Расширение искомого файла."),
+    final_extension: str = typer.Option(
         ".ann", help="Расширение сконвертированного файла."
     ),
-    recursive: Optional[bool] = typer.Option(
+    recursive: bool = typer.Option(
         False, help="Осуществлять рекурсивный поиск вглуб каталога."
     ),
 ):
     """
     Модуль для поиска и конвертации файлов разметки BRAT в разметку BIO.
     """
-    search = SearchFile(catalog, recursive, suff_conv, init_extension)
-    converter = ConvertMarkup(
-        search.get_files_from_current_dir(), suff_conv, final_extension
-    )
+    search_file = get_files(catalog, recursive, suff_conv, init_extension)
+    converter = ConvertMarkup(search_file, suff_conv, final_extension)
     converter.convert_all()
     typer.echo(
         f"Сконвертированно файлов: {converter.result}"
