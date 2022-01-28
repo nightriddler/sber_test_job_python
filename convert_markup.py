@@ -1,5 +1,4 @@
 import csv
-import os
 import pathlib
 from dataclasses import dataclass
 from io import TextIOWrapper
@@ -91,7 +90,7 @@ class ConvertMarkup:
         """
         file = root[:-5] + self.suffix_markup + self.extension
 
-        if self.check_file(file):
+        if pathlib.Path(file).exists():
             typer.echo(f"Файл {root} уже сконвертирован.")
             return
 
@@ -170,16 +169,6 @@ class ConvertMarkup:
             for i in range(len(words)):
                 writer.writerow([entities[i], tags[i], words[i]])
             self.__count += 1
-
-    def check_file(self, file: str) -> bool:
-        """
-        Проверка файла на повторную конвертацию.
-
-        Возвращаемое значение
-        ---------------------
-        bool
-        """
-        return True if os.path.exists(file) else False
 
     def replace_comma(self, word: str) -> str:
         """
