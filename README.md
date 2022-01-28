@@ -18,10 +18,9 @@
 ```
 git clone https://github.com/nightriddler/sber_test_job_python.git
 cd sber_test_job_python
-python -m venv venv
-source venv/Scripts/activate 
-pip install -r requirements.txt
 ```
+Для зависимостей используется [`Poetry`](https://github.com/python-poetry/poetry)
+
 ## Описание
 Приложение для конвертации файлов в указанном каталоге.
 ```

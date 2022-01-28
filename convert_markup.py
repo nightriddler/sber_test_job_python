@@ -11,7 +11,7 @@ def get_files(
     catalog: str, recursive: bool, suffix_markup: str, extension: str
 ) -> List[str]:
     """
-    Осуществляет поиск в каталоге.
+    Осуществляет поиск в каталоге и выдает список путей найденных файлов.
 
     По-умолчанию, recursive = False, ищет файлы только в каталоге.
     extension и suffix_markup - исключают поиск файлов с указанным расширением и суффиксом
