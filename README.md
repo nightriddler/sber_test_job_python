@@ -19,7 +19,7 @@
 git clone https://github.com/nightriddler/sber_test_job_python.git
 cd sber_test_job_python
 ```
-Для зависимостей используется [`Poetry`](https://github.com/python-poetry/poetry)
+Для установки зависимостей используйте [`Poetry`](https://github.com/python-poetry/poetry)
 
 ## Описание
 Приложение для конвертации файлов в указанном каталоге.
