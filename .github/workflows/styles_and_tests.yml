@@ -1,0 +1,28 @@
+name: Styles and tests
+
+on: [push, pull_request]
+
+jobs:
+  formatter_and_linter_test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+
+    - name: Install poetry
+      run: pip install poetry
+
+    - name: Install dependencies
+      run: poetry install
+
+    - name: Styles with mypy and black
+      run: |
+        poetry run black .
+        poetry run mypy .
+    
+    - name: Test
+      run: poetry run python test.py

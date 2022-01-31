@@ -88,8 +88,7 @@ class ConvertMarkup:
         ---------------------
         None
         """
-        file = root[:-5] + self.suffix_markup + self.extension
-
+        file = root[:-4] + self.suffix_markup + self.extension
         if pathlib.Path(file).exists():
             typer.echo(f"Файл {root} уже сконвертирован.")
             return
