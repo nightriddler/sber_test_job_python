@@ -1,0 +1,25 @@
+name: Styles
+
+on: [push, pull_request]
+
+jobs:
+  formatter_and_linter:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.10.0
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+
+    - name: Install library
+      run: poetry install 
+
+    - name: Styles with mypy and black
+      run: |
+        poetry run black .
+        poetry run mypy .

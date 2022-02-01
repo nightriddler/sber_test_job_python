@@ -1,4 +1,6 @@
 # sber_test_job_python
+[![Styles](https://img.shields.io/github/workflow/status/nightriddler/sber_test_job_python/Styles?label=MyPy|Black)](https://github.com/nightriddler/sber_test_job_python/actions/workflows/styles.yml)
+
 Тестовое задание для Сбера.
 
 ## Задание:
